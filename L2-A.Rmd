@@ -1,0 +1,369 @@
+---
+author: "Tu nombre va aquí"
+date: "Mayo, 2022"
+title: "Aprendizaje de Máquinas 2022 L2-A"
+output:
+  html_document:
+    df_print: paged
+---
+## CURVAS DE APRENDIZAJE y REGULARIZACIÓN
+
+Este laboratorio se divide en 2 etapas L2-A, y L2-B donde utilizaremos un dataset de diagnostico de cáncer de mama a partir de características visuales de los tejidos nodulares.
+
+* L2-A: Analizaremos las situaciones de Overfit, Underfit y Regularizacion con Deep Learning.
+* L2-B: K-Fold cross validation para encontrar mejores parámetros para un modelo de SVM.
+
+
+# Introducción
+
+En este laboratorio estimaremos el diagnostico de cáncer de mama a partir de las características visuales como la forma, bordes, y otra informacion de la geometría de los nódulos. Tendremos en cuenta diferentes tipos de arquitecturas de redes y técnicas de entrenamiento, analizaremos sus curvas de error para poder determinar si el modelo elegido es adecuado o la cantidad de datos es suficiente.
+
+# Información del conjunto de datos:
+
+Las características se obtienen a partir de una imagen digitalizada de un aspirado con aguja fina, en ingles fine needle aspirate (FNA), de una masa mamaria. Describen las características de los núcleos celulares presentes en la imagen.
+
+Esta base de datos también está disponible a través del servidor ftp UW CS:
+ftp ftp.cs.wisc.edu
+cd math-prog/cpo-dataset/machine-learn/WDBC/
+
+# Dataset
+
+Esta base de datos fue creada a partir de datos reales para identificar nódulos de tejido, basándose en las características visuales de imágenes. El conjunto de datos consta de 569 muestras y 32 características.
+
+El significado de cada variable se describe a continuación:
+
+* 1) id: ID number
+* 2) diagnosis: The diagnosis of breast tissues (M = malignant, B = benign)
+* 3) radius_mean: mean of distances from center to points on the perimeter
+* 4) texture_mean: standard deviation of gray-scale values
+* 5) perimeter_mean: mean size of the core tumor
+* 6) area_mean: (no description provided)
+* 7) smoothness_mean: mean of local variation in radius lengths
+* 8) compactness_mean: mean of perimeter^2 / area - 1.0
+* 9) concavity_mean: mean of severity of concave portions of the contour
+* 10) concave points_mean: mean for number of concave portions of the contour
+* 11) symmetry_mean: (no description provided)
+* 12) fractal_dimension_mean: mean for "coastline approximation" - 1
+* 13) radius_se: standard error for the mean of distances from center to points on the perimeter
+* 14) texture_se: standard error for standard deviation of gray-scale values
+* 15) perimeter_se: (no description provided)
+* 16) area_se: (no description provided)
+* 17) smoothness_se: standard error for local variation in radius lengths
+* 18) compactness_se: standard error for perimeter^2 / area - 1.0
+* 19) concavity_se: standard error for severity of concave portions of the contour
+* 20) concave points_se: standard error for number of concave portions of the contour
+* 21) symmetry_se: (no description provided)
+* 22) fractal_dimension_se: standard error for "coastline approximation" - 1
+* 23) radius_worst: "worst" or largest mean value for mean of distances from center to points on the perimeter
+* 24) texture_worst: "worst" or largest mean value for standard deviation of gray-scale values
+* 25) perimeter_worst: (no description provided)
+* 26) area_worst: (no description provided)
+* 27) smoothness_worst: "worst" or largest mean value for local variation in radius lengths
+* 28) compactness_worst: "worst" or largest mean value for perimeter^2 / area - 1.0
+* 29) concavity_worst: "worst" or largest mean value for severity of concave portions of the
+contour
+* 30) concave points_worst: "worst" or largest mean value for number of concave portions of the contour
+* 31) symmetry_worst: (no description provided)
+* 32) fractal_dimension_worst: "worst" or largest mean value for "coastline approximation" - 1
+
+Para observar de mejor manera el comportamiento de las curvas de aprendizaje, se ha reducido el dataset original. Donde se han eliminado las columnas correspondientes a las características: (area_mean, area_se, texture_mean, concavity_worst, concavity_mean, perimeter_mean, radius_mean, compactness_mean, "concave points_mean", radius_se, perimeter_se, radius_worst, perimeter_worst, compactness_worst, "concave points_worst", compactness_se, "concave points_se", texture_worst, area_worst). Al eliminar estas características no solo se mejora la visualización de las curvas de aprendizaje, sino que también el problema se torna mas desafiante para resolverlos con tecnologías del estado del arte como redes neuronales profundas.
+
+# 200 datapoints y 3 modelos
+En esta parte del laboratorio utilizaremos una cantidad de datos fija (200 datapoints) y los cuales usaremos para entrenar 3 modelos con distintos nieveles de complejidad (bajo, medio, alto). La idea de estos ejercicios es observar como el modelo utilizado se ajusta a los datos de entrenamiento.
+
+# Ejercicio 0
+Leer los turoriales para poder resolver este laboratorio:
+
+* [KerasenR](TutorialKerasenR.html)
+* [BiasVarianza](TutorialBiasVarianza.html)
+* [GGplot](https://drive.google.com/drive/folders/1Yys3zFL743BJmFpKNsllfbaS71d0vo_E)
+
+
+```{r include=FALSE}
+library(keras)
+library(tensorflow)
+#install_keras()
+library(tidyverse)
+library(magrittr)
+#install.packages("varhandle")
+library(varhandle)
+library(mltest)
+
+```
+
+# Ejercicio 1
+Cargar el dataset cáncer reducido, ubicado en "./data/breast_cancer_reduced.csv". Utilizar la función sample para extraer al azar solamente 200 datapoints (las caracteristicas de 200 nodulos). Y separar en conjunto de testeo 30% (Xtest, Ytest) y entrenamiento 70% (Xtraining, Ytraining) utilizando la técnica X (matriz de características) e Y (matriz variable objetivo). La columna diagnosis contiene la clase objetivo. Eliminar también la columna id, porque resulta irrelevante. ¿Cuantas filas y columnas tiene Xtraining e Ytraining?
+
+```{r}
+set.seed(1)
+data<-read_csv("./data/breast_cancer_reduced.csv")
+data <- data[sample(nrow(data),200),] #solo 1000 datapoints
+
+data <- (data[,c(1,3:13,2)])
+
+indices<-sample(nrow(data),0.7*nrow(data))
+
+
+
+dataTestOriginal<-data[-indices,]
+dataTrain<-data[indices,]
+dataTest<-data[-indices,]
+dataTestOriginal<-data[-indices,]
+
+dataTest <- dataTest %>% select(-c(id))
+dataTrain <- dataTrain %>% select(-c(id))
+#Saco la ID
+
+Xtraining <- as.matrix(dataTrain %>% select(-c(diagnosis))) 
+Ytraining <- as.matrix(dataTrain$diagnosis) %>% to.dummy("label")
+YtrainingNoDummy <- as.matrix(dataTrain$diagnosis)
+
+Xtest <- as.matrix(dataTest %>% select(-c(diagnosis)))
+YtestNoDummy <- as.matrix(dataTest$diagnosis)
+Ytest <- as.matrix(dataTest$diagnosis) %>% to.dummy("label")
+
+print(c('N° Filas Xtraining'= nrow(Xtraining),'N° Filas Ytraining'= 1 , 'N° Columnas Xtraining'= ncol(Xtraining),'N° Columnas Ytraining'= length(Ytraining)))
+
+```
+
+#Ejercicio 2
+Modifica el tipo de dato de los conjuntos para que se adecúe al formato de keras:
+
+* X: las features deben estar contenidas en matrices, no dataframes. Esto nos limita a que todas las features sean de tipo numéricas.
+* Y: las variables de salida deben estar en formato one_hot en el caso de clasificación (para ello utilizar la función to.dummy de la librería varhandle). Ver tutorial.
+```{r}
+
+
+
+
+```
+
+## 3 Modelos
+Utilizando el tutorial de Keras (KerasEnR.Rmd) vamos a construir varios modelos de redes profundas. Cada modelo tendrá una arquitectura de diferente complejidad. Es decir distintas cantidad de neuronas en cada una de sus capas ocultas. A continuación construiremos 3 redes, una llamada Modelo Pequeño, otra Modelo Básico y Modelo Grande, que tendrán una complejidad baja, media y alta respectivamente.
+
+# Ejercicio 3
+
+Construir el Modelo Pequeño (smaller_model) que consta de:
+
+* capa de entrada: 11 neuronas
+* 1er capa oculta: 2 neuronas, activación relu
+* capa de salida: 2 neuronas, activación sigmoide
+
+Compilar el modelo utilizando optimizador adam, función de perdida binary_crossentropy y que liste el accuracy. Finalmente mostrar el sumario. ¿Que significan los números en Param #?
+
+```{r}
+smaller_model <- 
+  keras_model_sequential() %>%
+  layer_dense(units = 2, activation = "relu", input_shape = 11) %>%
+  layer_dense(units = 2, activation = "sigmoid")
+
+smaller_model %>% compile(
+  optimizer = "adam",
+  loss = "binary_crossentropy",
+  metrics = list("accuracy")
+)
+
+smaller_model %>% summary()
+
+#La columna "Param #" muestra la cantidad de parámetros que se entrenan para cada capa. El número total de parámetros se muestra al final, que es igual al número de parámetros entrenables y no entrenables. En este modelo, todas las capas son entrenables.
+```
+
+#Ejercicio 4
+Construir el Modelo Básico (baseline_model) que consta de:
+
+* capa de entrada: 11 neuronas
+* 1er capa oculta: 16 neuronas, activación relu
+* 2da capa oculta: 16 neuronas, activación relu
+* capa de salida: 2 neuronas, activación sigmoide
+
+Compilar el modelo utilizando optimizador adam, función de perdida binary_crossentropy y que liste el accuracy. Finalmente mostrar el sumario.
+
+```{r}
+baseline_model <- 
+  keras_model_sequential() %>%
+  layer_dense(units = 16, activation = "relu", input_shape = 11) %>%
+  layer_dense(units = 16, activation = "relu") %>%
+  layer_dense(units = 2, activation = "sigmoid")
+
+baseline_model %>% compile(
+  optimizer = "adam",
+  loss = "binary_crossentropy",
+  metrics = list("accuracy")
+)
+
+baseline_model %>% summary()
+
+```
+
+#Ejercicio 5
+Construir el Modelo Grande (bigger_model) que consta de:
+
+* capa de entrada: 11 neuronas
+* 1er capa oculta: 512 neuronas, activación relu
+* 2da capa oculta: 512 neuronas, activación relu
+* capa de salida: 2 neuronas, activación sigmoide
+
+Compilar el modelo utilizando optimizador adam, función de perdida binary_crossentropy y que liste el accuracy. Finalmente mostrar el sumario.
+
+```{r}
+bigger_model <- 
+  keras_model_sequential() %>%
+  layer_dense(units = 512, activation = "relu", input_shape = 11) %>%
+  layer_dense(units = 512, activation = "relu") %>%
+  layer_dense(units = 2, activation = "sigmoid")
+
+bigger_model %>% compile(
+  optimizer = "adam",
+  loss = "binary_crossentropy",
+  metrics = list("accuracy")
+)
+
+bigger_model %>% summary()
+```
+
+## Hiperparámetros de entrenamiento
+
+Asignaremos estos valores de hiperparámetros en forma general que utilizaremos para el entrenamiento de todos nuestros modelos.
+¿Que sucede con las redes al modificar estos hiperparámetros? ¿De que forma se podrian encontrar valores adecuados?
+
+```{r}
+#hiperparámetros
+my_epochs = 300 #epochs
+my_batch_size = 20 #batch_size
+```
+
+# Ejercicio 6
+Realice el entrenamiento de los modelos, utilizando la función fit, los datos de entrenamiento y los de validación. Almacene el historial en distintas variables para poder graficar el error y el accuracy en { smaller_history; baseline_history; bigger_history} respectivamente.
+
+
+
+```{r}
+# su código aquí
+smaller_history <- smaller_model %>% fit(
+  Xtraining,
+  Ytraining,
+  epochs = my_epochs,
+  batch_size = my_batch_size,
+  validation_data = list(Xtest, Ytest),
+  verbose = 2
+)
+
+baseline_history <- baseline_model %>% fit(
+  Xtraining,
+  Ytraining,
+  epochs = my_epochs,
+  batch_size = my_batch_size,
+  validation_data = list(Xtest, Ytest),
+  verbose = 2
+)
+
+bigger_history <- bigger_model %>% fit(
+  Xtraining,
+  Ytraining,
+  epochs = my_epochs,
+  batch_size = my_batch_size,
+  validation_data = list(Xtest, Ytest),
+  verbose = 2
+)
+```
+
+# Ejercicio 7
+Calcule la matriz de confusión para cada uno de los modelos, utilizando predict_classes() y Xtest e Ytest.
+
+```{r}
+class_output_s <- smaller_model %>% predict(Xtest) %>% k_argmax()
+class_output_m <- baseline_model %>% predict(Xtest) %>% k_argmax()
+class_output_b <- bigger_model %>% predict(Xtest) %>% k_argmax()
+
+print(class_output_s)
+
+#cm<- table()
+```
+
+# Ejercicio 8
+Genere un dataframe que combine la información del proceso de entrenamiento presente en las variables smaller_history, baseline_history y bigger_history. Le recomendamos ver en el historial de KerasEnR la estructura interna de los historiales que devuelve el métoo fit. El dataframe debe tener las siguientes columnas.
+
+epoch | loss | accuracy | val_loss | val_accuracy | nombre del modelo
+
+```{r}
+# su código aquí
+```
+
+# Ejercicio 9
+Recrear los gráficos de evolución del error y el accuracy a través de las epochs que se pueden observar en el TutorialBiasVarianza para los 3 modelos creados. Para generar los gráficos use la información presente en el dataframe historiales que se creó en el ejercicio 8. ¿Mirando estas curvas, como se ajusta cada modelo a los datos de entrenamiento y validación?
+
+```{r}
+# su código aquí
+```
+
+# Ejercicio 10
+Recrear el gráfico que analiza el error a partir de la complejidad del modelo que se puede observar en el Tutorial BiasVarianza. Para esto deberá entrenar distintos modelos con {1,2,4,8,16,32,64,128,256,512} neuronas en sus dos capas ocultas. Este ejercicio es coputacionalmente costoso y puede demorar varios minutos. ¿Observando las curvas cual sería la cantidad de neuronas óptima para este problema?
+
+```{r}
+# su código aquí
+```
+
+# Mas datos, menos datos y el modelo fijo
+
+Veremos ahora utilizando el mismo modelo, como influye la cantidad de datos en el entrenamiento.
+
+
+# Ejercicio 11
+
+En este ejercicio entrenar el modelo basico del ejercicio 4, utilizando para entrenar {20, 200, 400} datapoints. En los 3 casos utilice el dataset de testeo completo como validación. Almacenar el historial de entrenamiento de cada modelo en las variables {baseline_history_20, baseline_history_200, baseline_history_400]}.
+
+```{r}
+# su código aquí
+baseline_history_20 <- NULL
+```
+
+```{r}
+# su código aquí
+baseline_history_200 <- NULL
+```
+
+```{r}
+# su código aquí
+baseline_history_400 <- NULL
+```
+
+# Ejercicio 12
+Genere un dataframe que combine la información del proceso de entrenamiento presente en las variables baseline_history_20, baseline_history_200 y baseline_history_400. Le recomendamos ver en el historial de KerasEnR la estructura interna de los historiales que devuelve el métoo fit. El dataframe debe tener las siguientes columnas.
+
+epoch | loss | accuracy | val_loss | val_accuracy | tamaño_dataset
+
+```{r}
+# su código aquí
+```
+
+# Ejercicio 13
+Graficar la evolución del error y el accuracy a través de las epochs, de los modelos entrenados con 20, 200 y 400 datapoints, utilizando los datos almacenados en dataframe del ejercicio anterior . ¿Que se puede decir de estas curvas? ¿Siendo que la arquitectura de la red es la misma, que indican estas curvas cuando la red se entrena con distintas cantidades de datos?
+
+```{r}
+# su código aquí
+```
+
+# Ejercicio  14
+Recrear el gráfico que muestra la convergencia de las curvas de error de entrenamiento y de testeo a medida que aumenta el tamaño del dataset de entrenamiento. Este gráifco puede observarse en la sección "Determinación de la cantidad de datos necesarios para entrenamiento" del TutorialBiasVarianza. Para esto deberá entrenar distintos modelos con cantidades distintas de datos N={5,10,15,20,...., 190,195,200} datapoints. En cada iteracion almacene el ultimo valor de la función de perdida tanto la de entrenamiento (loss) como la de validacion (val_loss). 
+
+```{r}
+# su código aquí
+```
+
+# Regularización
+
+# Ejercicio 15
+Aplicar sobre el modelo grande del ejercicio 5 las técnicas de prevención del overfitting presentadas en el TutorialBiasVarianza (Regularización de pesos, Dropout y EarlyStopping). Comparar la evolución del error y el accuracy a través de las epochs de los cuatro modelos lado a lado. ¿Que se puede decir de estas curvas? ¿y de los modelos?
+
+
+```{r}
+# su código aquí
+```
+
+# Ejercicio 16
+Calular las matrices de confusion de los modelos del ejercicio anterior y calcule alguna medida de rendimiento.
+
+```{r}
+# su código aquí
+```
+

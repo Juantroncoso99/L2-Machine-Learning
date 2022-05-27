@@ -1,0 +1,97 @@
+---
+title: "Aprendizaje de Máquinas 2022 L2-B"
+author: "Tu nombre va aquí"
+date: "Mayo, 2022"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Introducción
+En el ejercicio 14 del L2-A se graficaron las curvas de aprendizaje del modelo óptimo utilizando de 0 a 200 datapoints y pudimos ver donde convergían las curvas de aprendizaje de testeo y entrenamiento. Como notación, usaremos $N$ para denotar la **cantidad de datos que tenemos**, es decir, la cantidad de datos con las que se generaron las curvas de aprendizaje; y $N^{*}$ para denotar aquel **valor de $N$ donde convergen las curvas**. 
+
+Sin embargo, en la realidad podríamos no contar con la cantidad de datos necesaria para que las curvas converjan. Es decir nuestro $N<N^{*}$. Esta situación nos obligaría a conseguir más datos, lo que podría ser muy costoso.
+
+Por lo tanto, surge la necesidad de encontrar alguna forma de **estimar el valor de $N^{*}$**  para ver si es viable conseguir esa cantidad de datos antes de seguir incurriendo en gastos.
+
+Una forma de estimar $N^{*}$ es **ajustar una función conocida** a las curvas de aprendizaje de testeo y entrenamiento. De esta manera, conociendo dicha función, podríamos utilizarla para  **extrapolar valores de error** más allá del tamaño actual $N$ de nuestro dataset y estimar aproximadamente el $N^{*}$  donde convergerán nuestras curvas. Utilizaremos $\hat N^{*}$ para denotar esta estimación aproximada mediante extrapolación y así diferenciarlo de $N^{*}$ que es el punto real donde convergen las curvas. 
+
+Sin embargo, veremos que utilizar distintas cantidades de datos para ajustar estas funciones a las curvas reales producirán diferentes valores para $\hat N^{*}$. Por lo tanto, añadiremos a la notación esta cantidad de datos usada para ajustar. De esta manera, podremos distinguir por ejemplo entre $\hat N^{*}(20)$, que será la estimación de $N^{*}$ obtenida a partir de usar valores de $N<=20$ para ajustar la función a las curvas de aprendizaje; y $\hat N^{*}(30)$ que será otra estimación diferente producida al ampliar el rango de valores de $N$ hasta $N<=30$.
+
+Por lo general se utilizan las siguientes funciones para modelar la relación entre los errores (E) y el tamaño $N$ del dataset utilizado en cada punto de la curva de aprendizaje.
+
+
+
+*   ***Exponencial***: $E(N) = b.N^{-c}$ inspirada en la disminución exponencial que se observa en los errores al aumentar el tamaño del dataset. Asume que $E \rightarrow 0$ cuando $ N \rightarrow \infty$
+*   ***Raíz Cuadrada Invertida***: $E(N) = a + b.N^{-\frac{1}{2}}$ inspirada en la relación entre bias y varianza, donde $E \rightarrow a$ cuando $ N \rightarrow \infty$ lo que implicaría que $a$ sería el bias introducido por la arquitectura del modelo.
+
+
+
+En R se utiliza la función nls para ajustar funciones conocidas a los datos. El siguiente [tutorial](https://rpubs.com/pabloMarinozi/616171) explica cómo se utiliza.
+
+En este laboratorio nos imaginaremos escenarios con datasets de entrenamiento de diversos tamaños $N$ y trataremos de determinar el $N^{*}$ en cada caso, lo que denotamos $\hat N^{*}(N)$.
+
+### Ejercicio 1
+
+Vuelva a ejecutar el código del ejercicio 14 del L2A. Esta vez, en cada iteracion almacene el ultimo valor de accuracy tanto la de entrenamiento (accuracy) como la de validacion (val_accuracy). Genere un dataframe con las siguientes columnas: {N, loss=1-accuracy, val_loss = 1-val_accuracy}. Por último, guarde estos valores en disco en un archivo csv llamado losses.csv
+
+
+```{r}
+
+accuracy <- c()
+val_accuracy <- c()
+
+# su código aquí
+
+losses <- tibble(N=N,loss=1-accuracy,val_loss=1-val_accuracy)
+write_csv(losses,"losses.csv")
+```
+
+### Ejercicio 2
+
+Simulemos que solo pudimos conseguir $N=50$ datapoints para entrenar y que queremos estimar nuestro $N^{*}$. Para esto cargue el archivo csv que generó en el ejercicio anterior y filtre las filas con $N <= 50$. Por último, utilice la función nls para ajustar una función exponencial y raiz cuadrada invertida a los datos filtrados siguiendo los pasos explicados en el [tutorial](https://rpubs.com/pabloMarinozi/616171)
+
+```{r}
+# su código aquí
+```
+
+### Ejercicio 3
+
+Utilice los parámetros ajustados en el ejercicio anterior para realizar una interpolación de los errores de entrenamiento y testeo para $N$ entre 1 y 50. Grafique las curvas generadas junto a los valores reales para ver que tanto se parecen a las curvas reales.
+
+```{r}
+# su código aquí
+```
+
+### Ejercicio 4
+
+Utilice los parámetros ajustados en el ejercicio 2 para realizar una extrapolación de los errores de entrenamiento y testeo para los  N  entre 1 y 200. Grafique las curvas generadas y determine  N^∗(50)  según cada función.
+
+```{r}
+# su código aquí
+```
+
+### Ejercicio 5
+
+Supongamos que pudimos hacer el esfuerzo de conseguir 50 datapoints más (entrenando con un total de 100 datapoints) para poder determinar de forma más exacta el $N^{*}$ de nuestro problema. Repita por completo el procedimiento realizado en los ejercicios 2, 3 y 4 para poder encontrar $\hat N^{*}(100)$ esta vez. 
+
+```{r}
+# su código aquí
+```
+
+### Ejercicio 6 
+
+Grafique las extrapolaciones obtenidas filtrando $N<=50$ y $N<=100$ contra los datos reales hasta 200 para determinar qué tan bien reflejan los datos reales. ¿Coinciden $\hat N^{*}(50)$ y $\hat N^{*}(100)$? ¿Alguno de los dos coincide con $N^{*}$?
+
+```{r}
+# su código aquí
+```
+
+### Ejercicio 7
+
+Identifique a partir de qué valor de $N$ se cumple que $\hat N^{*}(N)\approx N^{*}$
+
+```{r}
+# su código aquí
+```
+
